@@ -259,7 +259,8 @@ train = train[inTrain,]</code></pre>
 </div>
 <div id="model" class="section level2">
 <h2>Model</h2>
-<p>Random Forest was selected for this project.</p>
+<p>Random Forest is one the best classification methods that operates by constructing decision trees and output the best version of the model. Algorithm can be very slow; however, it should not have huge impact on processing of dataset used in this project. There is a risk of overfitting therefore validation of model will be included in the process and out-of-sample error calculation before applying model to testing dataset.<br />
+Cross-validation, 10-fold and 3 repeats, will slow down calculations but reduce overfitting issue.</p>
 <pre class="r"><code>train.control = trainControl(method = &quot;repeatedcv&quot;, number = 10, repeats = 3)
 mod = randomForest(classe~., data = train, trControl = train.control)
 print(mod)</code></pre>
@@ -316,7 +317,9 @@ print(confM)</code></pre>
 ## Detection Rate         0.2845   0.1935   0.1740   0.1633   0.1839
 ## Detection Prevalence   0.2845   0.1937   0.1745   0.1635   0.1839
 ## Balanced Accuracy      1.0000   0.9999   0.9987   0.9983   1.0000</code></pre>
-<p>Random Forest algorithms generates model with 99.92% accuracy for validation dataset. That is good result therefore model will be used to predict on testing dataset.</p>
+<pre class="r"><code>v = validate; v$classe  = revalue( v$classe, c(&quot;A&quot; = 1, &quot;B&quot; = 2, &quot;C&quot; = 3, &quot;D&quot; = 4, &quot;E&quot; = 5));
+RMSE_validate = sqrt(sum((as.numeric(predict(mod,newdata=v))-as.numeric(v$classe))^2))</code></pre>
+<p>Random Forest algorithms generates model with 99.92% accuracy for validation dataset. Out-of-sample error estimation: 2.24. That is good result, therefore model will be used to predict on testing dataset.</p>
 </div>
 <div id="test" class="section level2">
 <h2>Test</h2>

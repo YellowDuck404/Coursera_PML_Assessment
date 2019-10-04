@@ -100,7 +100,8 @@ validate = train[-inTrain,]
 train = train[inTrain,]
 ```
 ## Model
-Random Forest was selected for this project.
+Random Forest is one the best classification methods that operates by constructing decision trees and output the best version of the model. Algorithm can be very slow; however, it should not have huge impact on processing of dataset used in this project. There is a risk of overfitting therefore validation of model will be included in the process and out-of-sample error calculation before applying model to testing dataset.  
+Cross-validation, 10-fold and 3 repeats, will slow down calculations but reduce overfitting issue.
 ```{r model, warning=FALSE, message=FALSE}
 train.control = trainControl(method = "repeatedcv", number = 10, repeats = 3)
 mod = randomForest(classe~., data = train, trControl = train.control)
@@ -113,9 +114,12 @@ print(mod)
 predV = predict(mod, validate)
 confM = confusionMatrix(predV, validate$classe)
 print(confM)
+
+v = validate; v$classe  = revalue( v$classe, c("A" = 1, "B" = 2, "C" = 3, "D" = 4, "E" = 5));
+RMSE_validate = sqrt(sum((as.numeric(predict(mod,newdata=v))-as.numeric(v$classe))^2))
 ```
 
-Random Forest algorithms generates model with `r round(100*confM$overall['Accuracy'],2)`% accuracy for validation dataset. That is good result therefore model will be used to predict on testing dataset.
+Random Forest algorithms generates model with `r round(100*confM$overall['Accuracy'],2)`% accuracy for validation dataset. Out-of-sample error estimation: `r round(RMSE_validate,2)`. That is good result, therefore model will be used to predict on testing dataset.
 
 ## Test
 Test dataset needs to be transformed in similar manner as training.
