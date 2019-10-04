@@ -1,0 +1,136 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Yellow Duck"
+date: "October 4, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise.   
+
+More information is available from the website [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har).
+
+# Environment Preparation and Data Loading
+## Environment Preparation
+The fist step is to load required libraries and set the seed, with Warnings and Messages hidden.  
+```{r envPreparation, warning=FALSE, message=FALSE}
+library(caret)
+library(corrplot)
+library(dplyr)
+library(plyr)
+library(randomForest)
+
+set.seed(12345)
+```
+
+Then to download and load datasets are available here:  
+
+* [pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+* [pml-testing.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+```{r dataLoading, warning=FALSE, message=FALSE}
+url = "https://d396qusza40orc.cloudfront.net/predmachlearn/"
+
+fileTrain = "pml-training.csv"
+fileTest  = "pml-testing.csv"
+
+if (!file.exists(paste0(getwd(), fileTrain))) {
+  download.file(paste0(url, fileTrain), destfile=paste0(getwd(), "/", fileTrain), method = "curl");
+}
+if (!file.exists(paste0(getwd(), fileTest))) {
+  download.file(paste0(url, fileTest), destfile=paste0(getwd(), "/", fileTest), method = "curl");
+}
+
+train = read.csv("pml-training.csv", header = TRUE, na.strings = c("NA", ""), stringsAsFactors = FALSE)
+test  = read.csv("pml-testing.csv",  header = TRUE, na.strings = c("NA", ""), stringsAsFactors = FALSE)
+```
+
+## Data Preparation
+Data contains `r dim(train)[2]` variables, with **classe** as an output populated with **5** levels, A, B, C, D and E.
+Training dataset contains **`r dim(train)[1]`** records, and testing dataset **`r dim(test)[1]`** records.
+
+`r dim(train)[2] - sum(c((colSums(!is.na(train[,-ncol(train)])) >= 0.6*nrow(train))))` variables are populated in less than 60% records. There are multiple methods to replace missing data; however, for the purpose of the first attempt missing data were not replaced and only well populated variables were used in further steps.
+
+```{r dataPreparation1, warning=FALSE, message=FALSE}
+keepRecord = c((colSums(!is.na(train[,-ncol(train)])) >= 0.6*nrow(train)))
+train = train[, keepRecord]
+```
+
+In addition, 3 variables were removed from further steps as non relevant (X, user_name) or difficult to map and use in feature selection process (cvtd_timestamp).
+
+```{r dataPrepartion2, warning=FALSE, message=FALSE}
+train = subset(train, select = -c(X, user_name, cvtd_timestamp))
+```
+
+Remaining non numeric variables were mapped into numeric representation and correlaction of variables were estimated.
+
+```{r dataPreparation3, warning=FALSE, message=FALSE}
+# data preparation
+train$new_window = as.character(train$new_window)
+train$new_window = revalue(train$new_window, c("no" = 0, "yes" = 1))
+train$new_window = as.numeric(train$new_window)
+
+# correlaction calculation
+descrCor <-  cor(select(train, -c(classe)))
+corrplot(descrCor,  method = "square", order = "alphabet",  tl.col = "black", tl.srt = 45, type = "lower", bg = "white", tl.pos = 'n')
+```
+
+As visible on above chart there are highly correlated variables that will be removed from further analysis.
+```{r dataPreparation4, warning=FALSE, message=FALSE}
+highlyCor = findCorrelation(descrCor, cutoff = .7)
+train = select(train, -highlyCor)
+```
+Data set contains now only `r dim(train)[2]-1` most important variables to estimate **classe** output variable.
+
+# Model, validation and testing
+
+## Data preparation
+Train dataset with `r dim(train)[1]` records, 'r dim(train)[2]-1' variables and **classe** output will be used for model creation and testing (validation). Train dataset will be divided into 70% for training and 30% for testing (validation).
+```{r modelDataPreparation, warning=FALSE, message=FALSE}
+train$classe = as.factor(train$classe)
+
+inTrain = createDataPartition(train$classe, p = 0.7, list = FALSE)
+validate = train[-inTrain,]
+train = train[inTrain,]
+```
+## Model
+Random Forest was selected for this project.
+```{r model, warning=FALSE, message=FALSE}
+train.control = trainControl(method = "repeatedcv", number = 10, repeats = 3)
+mod = randomForest(classe~., data = train, trControl = train.control)
+print(mod)
+```
+
+## Validation
+
+```{r validation, warning=FALSE, message=FALSE}
+predV = predict(mod, validate)
+confM = confusionMatrix(predV, validate$classe)
+print(confM)
+```
+
+Random Forest algorithms generates model with `r round(100*confM$overall['Accuracy'],2)`% accuracy for validation dataset. That is good result therefore model will be used to predict on testing dataset.
+
+## Test
+Test dataset needs to be transformed in similar manner as training.
+
+```{r testDataPreparation1, warning=FALSE, message=FALSE}
+test = subset(test, select = -c(X, user_name, cvtd_timestamp))
+test$new_window = as.character(test$new_window)
+test$new_window = revalue(test$new_window, c("no" = "0", "yes" = "1"))
+test$new_window = as.numeric(test$new_window)
+```
+
+Final step is to calculate prediction for test data set with `r dim(test)[1]` records.
+
+```{r testDataPreparation2, warning=FALSE, message=FALSE}
+predT = predict(mod, test)
+print(predT)
+```
+Based on quiz assessment classification is **100%** correct.
